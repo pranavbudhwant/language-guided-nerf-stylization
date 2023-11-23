@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # LERF: Language Embedded Radiance Fields
 This is the official implementation for [LERF](https://lerf.io).
 
@@ -70,3 +71,6 @@ If you find this useful, please cite the paper!
 &nbsp;booktitle = {International Conference on Computer Vision (ICCV)},
 &nbsp;year = {2023},
 } </pre>
+=======
+# nerf-style
+>>>>>>> 19cd93b381a564f3fdb9629806ef0a3a68983868
