@@ -39,6 +39,7 @@ from lerf.data.utils.pyramid_embedding_dataloader import PyramidEmbeddingDataloa
 from lerf.encoders.image_encoder import BaseImageEncoder
 from nerfstudio.data.datamanagers.base_datamanager import VanillaDataManager, VanillaDataManagerConfig
 
+from lerf.data.utils.style_dataloader import StyleDataLoader
 
 @dataclass
 class LERFDataManagerConfig(VanillaDataManagerConfig):
@@ -79,6 +80,8 @@ class LERFDataManager(VanillaDataManager):  # pylint: disable=abstract-method
         images = [self.train_dataset[i]["image"].permute(2, 0, 1)[None, ...] for i in range(len(self.train_dataset))]
         images = torch.cat(images)
 
+        self.style_dataloader = StyleDataLoader()
+
         cache_dir = f"outputs/{self.config.dataparser.data.name}"
         clip_cache_path = Path(osp.join(cache_dir, f"clip_{self.image_encoder.name}"))
         dino_cache_path = Path(osp.join(cache_dir, "dino.npy"))
@@ -114,6 +117,19 @@ class LERFDataManager(VanillaDataManager):  # pylint: disable=abstract-method
         ray_bundle = self.train_ray_generator(ray_indices)
         batch["clip"], clip_scale = self.clip_interpolator(ray_indices)
         batch["dino"] = self.dino_dataloader(ray_indices)
+
+        batch['style'] = torch.ones_like(image_batch['image'])
+        batch['mask'] = torch.ones_like(image_batch['image'])
+
+        print(image_batch.keys())
+        for key, value in image_batch.items():
+            print(key, value.shape)
+
+        print(batch.keys())
+        for key, value in batch.items():
+            print(key, value.shape)
+
+
         ray_bundle.metadata["clip_scales"] = clip_scale
         # assume all cameras have the same focal length and image width
         ray_bundle.metadata["fx"] = self.train_dataset.cameras[0].fx.item()

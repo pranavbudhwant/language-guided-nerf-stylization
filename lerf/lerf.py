@@ -21,12 +21,18 @@ from lerf.lerf_field import LERFField
 from lerf.lerf_fieldheadnames import LERFFieldHeadNames
 from lerf.lerf_renderers import CLIPRenderer, MeanRenderer
 
+import os
+import clip
+from .clip3dstyle.loss import nnfm_loss
+from .clip3dstyle.features import FeatureExtractor, VGGFeatures
+
+
 
 @dataclass
 class LERFModelConfig(NerfactoModelConfig):
     _target: Type = field(default_factory=lambda: LERFModel)
     clip_loss_weight: float = 0.1
-    n_scales: int = 30
+    n_scales: int = 1 # CHANGE 30
     max_scale: float = 1.5
     """maximum scale used to compute relevancy with"""
     num_lerf_samples: int = 24
@@ -51,6 +57,29 @@ class LERFModel(NerfactoModel):
             self.config.hashgrid_resolutions,
             clip_n_dims=self.image_encoder.embedding_dim,
         )
+
+        self.style_layers = [
+            "layer3_0_conv2",
+            "layer3_1_conv2",
+            "layer3_2_conv2",
+            "layer3_4_conv2",
+            "layer3_5_conv2",
+            "layer4_0_conv2",
+            "layer4_1_conv2",
+            "layer4_2_conv2",
+        ]
+        
+        # local_rank = int(os.environ["LOCAL_RANK"])
+        if torch.cuda.is_available():
+            device = torch.device('cuda')
+        else:
+            device = torch.device('cpu')
+
+        self.clip_model, _ = clip.load("RN50", device)
+        self.feature_extractor = FeatureExtractor(self.clip_model.visual.requires_grad_(False), 
+                                                  self.style_layers).cuda()
+        self.style_weight = 5e4
+        self.content_weight = 40.0
 
     def get_max_across(self, ray_samples, weights, hashgrid_field, scales_shape, preset_scales=None):
         # TODO smoothen this out
@@ -224,6 +253,12 @@ class LERFModel(NerfactoModel):
             loss_dict["clip_loss"] = unreduced_clip.sum(dim=-1).nanmean()
             unreduced_dino = torch.nn.functional.mse_loss(outputs["dino"], batch["dino"], reduction="none")
             loss_dict["dino_loss"] = unreduced_dino.sum(dim=-1).nanmean()
+
+            # Add a Feature-Matching Loss
+            with torch.no_grad():
+                style_features = self.feature_extractor(batch['style'])
+
+
         return loss_dict
 
     def get_param_groups(self) -> Dict[str, List[Parameter]]:
